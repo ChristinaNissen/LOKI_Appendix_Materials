@@ -1,0 +1,35 @@
+from pydantic import BaseModel
+from typing import List
+from datetime import datetime
+from typing import Optional
+
+
+class Ballot(BaseModel):
+    voterid: int
+    upk: str
+    ctv: List[List[str]]
+    ctlv: List[str] 
+    ctlid: List[str] 
+    proof: str
+    electionid: Optional[int] = None
+    timestamp: Optional[datetime] = None
+    hash: Optional[str] = None
+    imagepath: Optional[str] = None
+
+class BallotPayload(BaseModel):
+    electionid: int
+    ballot0list: List[Ballot]
+
+class ElGamalParams(BaseModel):
+    group: int
+    generator: str # base64-encoded
+    order: str # base64-encoded
+
+class BallotWithHash(BaseModel):
+    hash: str
+    ballot: Ballot
+
+class BallotWithElectionid(BaseModel):
+    ballot: Ballot
+    electionid: int
+    timestamp: datetime

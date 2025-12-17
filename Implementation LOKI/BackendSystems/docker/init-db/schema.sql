@@ -1,0 +1,95 @@
+DROP TABLE IF EXISTS Elections CASCADE;
+DROP TABLE IF EXISTS Candidates CASCADE;
+DROP TABLE IF EXISTS CandidateRunsInElection CASCADE;
+DROP TABLE IF EXISTS Voters CASCADE;
+DROP TABLE IF EXISTS VoterParticipatesInElection CASCADE;
+DROP TABLE IF EXISTS Ballots CASCADE;
+DROP TABLE IF EXISTS VoterCastsBallot CASCADE;
+DROP TABLE IF EXISTS Images CASCADE;
+DROP TABLE IF EXISTS VotingServer CASCADE;
+DROP TABLE IF EXISTS GlobalInfo CASCADE;
+
+CREATE TABLE Elections (
+    ID INT PRIMARY KEY,
+    Name VARCHAR(50) NOT NULL,
+    ElectionStart TIMESTAMPTZ NOT NULL,
+    ElectionEnd TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE Candidates (
+    ID INT PRIMARY KEY,
+    Name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE CandidateRunsInElection (
+    CandidateID INT REFERENCES Candidates(ID),
+    ElectionID INT REFERENCES Elections(ID),
+    PRIMARY KEY (CandidateID, ElectionID),
+    RESULT INT,
+    TallyProof BYTEA
+);
+
+CREATE TABLE Voters (
+    ID INT PRIMARY KEY,
+    Name VARCHAR(50) NOT NULL
+    -- password
+);
+
+CREATE TABLE VoterParticipatesInElection (
+    ElectionID INT REFERENCES Elections(ID),
+    VoterID INT REFERENCES Voters(ID),
+    PRIMARY KEY (VoterID, ElectionID),
+    PublicKey BYTEA NOT NULL
+);
+
+CREATE TABLE Ballots (
+    ID SERIAL PRIMARY KEY,
+    CtCandidate JSONB NOT NULL,
+    CtVoterList JSONB NOT NULL,
+    CtVotingServerList JSONB NOT NULL,
+    Proof BYTEA NOT NULL,
+    BallotHash TEXT NOT NULL
+);
+
+CREATE TABLE VoterCastsBallot (
+    BallotID INT PRIMARY KEY REFERENCES Ballots(ID),
+    VoterID INT REFERENCES Voters(ID),
+    ElectionID INT REFERENCES Elections(ID),
+    VoteTimestamp TIMESTAMP NOT NULL -- multiple type options - we need to reflect on what fits best.
+);
+
+CREATE TABLE Images (
+    ImageFilename VARCHAR(50) NOT NULL,
+    BallotID INT PRIMARY KEY REFERENCES Ballots(ID)
+);
+
+CREATE TABLE GlobalInfo (
+    ID INT PRIMARY KEY,
+    PublicKeyTallyingServer BYTEA,
+    PublicKeyVotingServer BYTEA,
+    GroupCurve INT,
+    Generator BYTEA,
+    OrderP BYTEA
+);
+
+-- INSERT INTO Ballots ( 
+--     ID, 
+--     CtCandidate,
+--     CtVoterList,
+--     CtVotingServerList,
+--     Proof
+-- )
+-- VALUES (
+--     1,
+--     ARRAY[
+--         ROW(E'\\xDEAFDECA', E'\\xDEEEDECA')::ct_tuple,
+--         ROW(E'\\xDEAADECA', E'\\xDEFFDECA')::ct_tuple
+--     ],
+--     ROW(E'\\xDEAFDECA', E'\\xDEEEDECA')::ct_tuple,
+--     ROW(E'\\xDEAADECA', E'\\xDEFFDECA')::ct_tuple,
+--     TRUE
+-- );
+
+INSERT INTO GlobalInfo (ID, PublicKeyTallyingServer, PublicKeyVotingServer, Generator, OrderP) VALUES
+    (0, null, null, null, null);
+

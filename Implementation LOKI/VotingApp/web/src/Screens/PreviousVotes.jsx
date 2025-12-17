@@ -1,0 +1,205 @@
+import { useMemo, useState, useCallback, useEffect } from "react";
+import styled from "styled-components";
+import { useParams, useNavigate } from "react-router-dom";
+import PageTemplate from "../Components/PageTemplate";
+import ScreenTemplate from "../Components/ScreenTemplate";
+import PVTimeline from "../Components/PVTimeline";
+import PVImageDisplay from "../Components/PVImageDisplay";
+import ImagesSelected from "../Components/ImagesSelected";
+import { useApp } from "../Components/AppContext";
+
+const PreviousVotes = () => {
+  const { electionId } = useParams();
+  const nextRoute = `/${electionId}/CandidateSelection`;
+  const prevRoute = `/${electionId}/VoteCheck`;
+  const { user, setPreviousVotes, electionName, clearFlow } = useApp();
+  const navigate = useNavigate();
+
+  const navigateToMypage = () => {
+    clearFlow();
+    navigate("/mypage");
+  };
+
+  const [fetchedImages, setFetchedImages] = useState([]);
+  const [activeHour, setActiveHour] = useState("00"); // state for current active hour
+  const [selected, setSelected] = useState([]); // selected cbrimages (including index, image, and timestamp)
+  const [jumpToken, setJumpToken] = useState(0); // incremented on timeline click, triggers scroll
+
+  const fetchVoterCBR = async (electionId, voterId) => {
+    try {
+      const response = await fetch(
+        `/api/fetch-cbr-images-for-voter?election_id=${electionId}&voter_id=${voterId}`
+      );
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`Error fetching cbr images: ${errText}`);
+      }
+
+      const data = await response.json();
+      return data.cbrimages;
+    } catch (error) {
+      console.error("Error fetching cbr images:", error);
+      throw error;
+    }
+  };
+
+  useEffect(() => {
+    const voterId = user.user;
+    const fetchcbr = async () => {
+      try {
+        const imgs = await fetchVoterCBR(electionId, voterId);
+        setFetchedImages(imgs);
+      } catch (err) {
+        console.log(err.message);
+      }
+    };
+    fetchcbr();
+  }, [user]);
+
+  const imagesByHour = useMemo(() => {
+    const map = {};
+
+    for (const img of fetchedImages) {
+      const date = new Date(img.timestamp);
+      const hour = String(date.getHours() + 1).padStart(2, "0"); // date.getHours() +1 to match Copenhagen wintertime
+      if (!map[hour]) map[hour] = [];
+      map[hour].push({
+        index: img.cbrindex,
+        image: img.image,
+        timestamp: img.timestamp,
+      });
+    }
+    return map;
+  }, [fetchedImages]);
+
+  //handle radiobutton change, set active hour and increment jumptoken
+  const handleTimelineChange = useCallback((h) => {
+    setActiveHour(h);
+    // bump token so PVImageDisplay knows this change came from a radio click
+    setJumpToken((n) => n + 1);
+  }, []);
+
+  //toggle img selected/unselected
+  const toggleSelect = useCallback((cbrimages) => {
+    setSelected((prev) => {
+      const exists = prev.some((x) => x.cbrindex === cbrimages.cbrindex);
+      if (exists) {
+        return prev.filter((x) => x.cbrindex !== cbrimages.cbrindex);
+      } else {
+        return [...prev, cbrimages];
+      }
+    });
+  }, []);
+
+  const savePreviousVotes = useCallback(() => {
+    const selectedIndices = selected.map((img) => img.cbrindex);
+    setPreviousVotes(selectedIndices);
+    console.log("Previous votes list registered as:", selectedIndices);
+
+    if (nextRoute) {
+      navigate(nextRoute);
+    }
+  }, [selected]);
+
+  return (
+    <PageTemplate
+      progress={3}
+      onButtonClick={navigateToMypage}
+      electionName={electionName}
+    >
+      <ScreenTemplate
+        nextRoute={nextRoute}
+        prevRoute={prevRoute}
+        adjustableHeight={true}
+        buttonUnselectable={selected.length === 0}
+        onPrimaryClick={savePreviousVotes}
+      >
+        <Wrap>
+          <Top>
+            <Title>Select your previous votes</Title>
+            <Directions>
+              For each vote you cast previously, pick the image you were shown
+              afterwards. <br /> <br />
+              You can use the <b>hour timeline</b> below to jump, or simply
+              scroll through the gallery. Images are grouped by hours of the
+              election period. <br />
+              click an image to select it. To zoom an image, click the little
+              magnifying glass. <br />
+              To deselect an image, click the image in the list of selected
+              images below the gallery.
+            </Directions>
+          </Top>
+          <Timeline>
+            <Title2>Election timeline</Title2>
+            <PVTimeline
+              activeHour={activeHour}
+              onChange={handleTimelineChange}
+              electionId={electionId}
+            />
+          </Timeline>
+
+          <ImgGallery>
+            <PVImageDisplay
+              imagesByHour={imagesByHour}
+              selected={selected}
+              onToggleSelect={toggleSelect}
+              activeHour={activeHour}
+              onActiveHourChange={setActiveHour}
+              jumpToken={jumpToken}
+            />
+          </ImgGallery>
+          <SelectedImgs>
+            <SectionTitle>Selected images</SectionTitle>
+            <ImagesSelected images={selected} onRemove={toggleSelect} />
+          </SelectedImgs>
+        </Wrap>
+      </ScreenTemplate>
+    </PageTemplate>
+  );
+};
+
+export default PreviousVotes;
+
+const Wrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  width: 100%;
+`;
+
+const Top = styled.div`
+  width: 100%;
+  padding-bottom: 30px;
+`;
+
+const Title = styled.h1`
+  margin: 0 0 8px 0;
+`;
+
+const Title2 = styled.h2`
+  margin: 0 0 8px 0;
+`;
+
+const Directions = styled.p`
+  margin: 0;
+  font-size: 20px;
+  max-width: 1000px;
+`;
+
+const Timeline = styled.div`
+  width: 100%;
+`;
+
+const ImgGallery = styled.div`
+  width: 100%;
+`;
+
+const SelectedImgs = styled.div`
+  width: 100%;
+  padding-bottom: 50px;
+`;
+
+const SectionTitle = styled.h3`
+  margin: 6px 0 10px 0;
+`;
